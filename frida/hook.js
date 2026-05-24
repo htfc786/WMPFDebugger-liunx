@@ -39,18 +39,18 @@ const patchCDPFilter = (base, config) => {
 
 const hookOnLoadScene = (a1, sceneOffsets) => {
     const miniappConfigPtr = a1
-        .add(56)
-        .readPointer()
         .add(sceneOffsets[0])
-        .readPointer();
-    const miniappScenePtr = miniappConfigPtr
-        .add(8)
         .readPointer()
         .add(sceneOffsets[1])
+        .readPointer();
+    const miniappScenePtr = miniappConfigPtr
+        .add(sceneOffsets[2])
         .readPointer()
-        .add(16)
+        .add(sceneOffsets[3])
         .readPointer()
-        .add(sceneOffsets[2]);
+        .add(sceneOffsets[4])
+        .readPointer()
+        .add(sceneOffsets[5]);
     send(`[hook] scene: ${miniappScenePtr.readInt()}`);
 
     // 1000: from issue #83 <-- will crash the process

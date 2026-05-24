@@ -142,37 +142,58 @@ const frida_server = async (options: CliOptions, logger: Logger) => {
         scope: frida.Scope.Metadata,
     });
     const wmpfProcesses = processes.filter(
-        (process) => process.name === "WeChatAppEx.exe",
+        (process) =>
+            process.name === "WeChatAppEx.exe" ||
+            process.name === "WeChatAppEx",
     );
-    const wmpfPids = wmpfProcesses.map((p) =>
-        p.parameters.ppid ? p.parameters.ppid : 0,
-    );
+    const isLinux = wmpfProcesses.length > 0 &&
+        wmpfProcesses.every((p) => !p.name.endsWith(".exe"));
+    let wmpfPid: any;
+    let wmpfProcess: (typeof processes)[0] | undefined;
 
-    // find the parent process
-    const wmpfPid = wmpfPids
-        .sort(
-            (a, b) =>
-                wmpfPids.filter((v) => v === a).length -
-                wmpfPids.filter((v) => v === b).length,
-        )
-        .pop();
-    if (wmpfPid === undefined) {
-        throw new Error("[frida] WeChatAppEx.exe process not found");
+    if (isLinux) {
+        // On Linux, WeChatAppEx is a standalone ELF executable process,
+        // not a DLL loaded into the parent. Attach to it directly.
+        const wmpfRuntimePids = wmpfProcesses.map((p) => p.pid);
+        wmpfPid = wmpfRuntimePids[0];
+        wmpfProcess = wmpfProcesses[0];
+    } else {
+        const wmpfPids = wmpfProcesses.map((p) =>
+            p.parameters.ppid ? p.parameters.ppid : 0,
+        );
+        // find the parent process
+        wmpfPid = wmpfPids
+            .sort(
+                (a, b) =>
+                    wmpfPids.filter((v) => v === a).length -
+                    wmpfPids.filter((v) => v === b).length,
+            )
+            .pop();
+        wmpfProcess = processes.filter(
+            (process) => process.pid === wmpfPid,
+        )[0];
+    }
+    if (wmpfPid === undefined || wmpfProcess === undefined) {
+        throw new Error(
+            `[frida] ${isLinux ? "WeChatAppEx" : "WeChatAppEx.exe"} process not found`,
+        );
         return;
     }
-    const wmpfProcess = processes.filter(
-        (process) => process.pid === wmpfPid,
-    )[0];
-    const wmpfProcessPath = wmpfProcess.parameters.path as string | undefined;
-    const wmpfVersionMatch = wmpfProcessPath
-        ? wmpfProcessPath.match(/\d+/g)
-        : "";
-    const wmpfVersion = wmpfVersionMatch
-        ? new Number(wmpfVersionMatch.pop())
-        : 0;
-    if (wmpfVersion === 0) {
-        throw new Error("[frida] error in find wmpf version");
-        return;
+    let wmpfVersion: number | string = 0;
+    if (isLinux) {
+        wmpfVersion = "linux";
+    } else {
+        const wmpfProcessPath = wmpfProcess.parameters.path as string | undefined;
+        const wmpfVersionMatch = wmpfProcessPath
+            ? wmpfProcessPath.match(/\d+/g)
+            : "";
+        wmpfVersion = wmpfVersionMatch
+            ? Number(wmpfVersionMatch.pop())
+            : 0;
+        if (wmpfVersion === 0) {
+            throw new Error("[frida] error in find wmpf version");
+            return;
+        }
     }
 
     // attach to process

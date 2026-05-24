@@ -1,0 +1,6 @@
+{
+    "Version": "linux",
+    "LoadStartHookOffset": "0x8320180",
+    "CDPFilterHookOffset": "0xBCAAC90",
+    "SceneOffsets": [1360, 1312, 488]
+}
